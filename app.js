@@ -3,6 +3,7 @@ import { calcPanelFit } from "./terrain/calc.js";
 import { calcPanels } from "./panels/calc.js";
 import { calcCable } from "./cable/calc.js";
 import { calcConsumption } from "./consumption/calc.js";
+import { calcCosts } from "./costs/calc.js";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
                 "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -27,6 +28,15 @@ const state = {
   electricityPrice: 0.75,
   lossFactor: 0.85,
   consumption: [300, 280, 260, 240, 220, 200, 200, 220, 240, 260, 280, 300],
+  inflationRate: 3,
+  costItems: [
+    { name: "Panels", unitPrice: 800, quantity: 20, autoQty: true },
+    { name: "Inverter", unitPrice: 5000, quantity: 1 },
+    { name: "Mounting", unitPrice: 3000, quantity: 1 },
+    { name: "Wiring", unitPrice: 1500, quantity: 1 },
+    { name: "Grid-tie", unitPrice: 2000, quantity: 1 },
+    { name: "Labor", unitPrice: 4000, quantity: 1 },
+  ],
 };
 
 function recalc() {
@@ -38,6 +48,10 @@ function recalc() {
   const rows = state.overrideRows ?? auto.rows;
   const totalPanels = cols * rows;
   renderTerrain({ auto, cols, rows, totalPanels });
+
+  // Auto-sync panel quantity in cost items
+  const panelCost = state.costItems.find(c => c.autoQty);
+  if (panelCost) panelCost.quantity = totalPanels;
 
   const panelResult = calcPanels({
     totalPanels,
@@ -71,6 +85,13 @@ function recalc() {
   });
   renderConsumption(consumptionResult);
   renderProductionChart(consumptionResult);
+
+  const costsResult = calcCosts({
+    costItems: state.costItems,
+    annualSavings: consumptionResult.annualSavings,
+    inflationRate: state.inflationRate,
+  });
+  renderCosts(costsResult);
 }
 
 function renderPSH(psh) {
@@ -163,7 +184,18 @@ function renderProductionChart({ production }) {
   ctx.fillText("Consumption", 116, 10);
 }
 
-// Build monthly consumption inputs
+function renderCosts({ totalCost, paybackYears, itemizedCosts }) {
+  const el = document.getElementById("costs-output");
+  el.innerHTML = `
+    <table style="width:100%; font-size:0.85rem;">
+      <tr><th>Item</th><th style="text-align:right;">Total (z\u0142)</th></tr>
+      ${itemizedCosts.map(c => `<tr><td>${c.name}</td><td style="text-align:right;">${c.total.toLocaleString()}</td></tr>`).join("")}
+      <tr style="font-weight:700; border-top:2px solid #333;"><td>Total</td><td style="text-align:right;">${totalCost.toLocaleString()} z\u0142</td></tr>
+    </table>
+    <div style="margin-top:0.5rem;">Payback: <strong>${paybackYears !== null ? paybackYears + " years" : "N/A"}</strong></div>
+  `;
+}
+
 function buildConsumptionInputs() {
   const container = document.getElementById("monthly-consumption-inputs");
   container.innerHTML = `<label style="margin-top:0.5rem; display:block;">Monthly consumption (kWh)</label>` +
@@ -177,6 +209,36 @@ function buildConsumptionInputs() {
   container.querySelectorAll(".monthly-cons").forEach(input => {
     input.addEventListener("input", (e) => {
       state.consumption[parseInt(e.target.dataset.month)] = parseFloat(e.target.value) || 0;
+      recalc();
+    });
+  });
+}
+
+function buildCostInputs() {
+  const container = document.getElementById("cost-items-container");
+  container.innerHTML = state.costItems.map((item, i) => `
+    <div style="display:flex; gap:0.3rem; align-items:center; margin:4px 0; font-size:0.8rem;">
+      <input type="text" value="${item.name}" data-idx="${i}" data-field="name" class="cost-field" style="flex:2;">
+      <input type="number" value="${item.unitPrice}" data-idx="${i}" data-field="unitPrice" class="cost-field" style="flex:1;" step="100">
+      <span>&times;</span>
+      <input type="number" value="${item.quantity}" data-idx="${i}" data-field="quantity" class="cost-field" style="width:3rem;" step="1" ${item.autoQty ? 'disabled title="Auto from layout"' : ""}>
+      ${!item.autoQty ? `<button type="button" class="remove-cost" data-idx="${i}" style="cursor:pointer;">&times;</button>` : ""}
+    </div>
+  `).join("");
+
+  container.querySelectorAll(".cost-field").forEach(input => {
+    input.addEventListener("input", (e) => {
+      const idx = parseInt(e.target.dataset.idx);
+      const field = e.target.dataset.field;
+      state.costItems[idx][field] = field === "name" ? e.target.value : parseFloat(e.target.value) || 0;
+      recalc();
+    });
+  });
+
+  container.querySelectorAll(".remove-cost").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      state.costItems.splice(parseInt(e.target.dataset.idx), 1);
+      buildCostInputs();
       recalc();
     });
   });
@@ -215,6 +277,14 @@ bindInput("max-drop-pct", "maxDropPct");
 bindOptionalInput("cable-size", "cableSize");
 bindInput("electricity-price", "electricityPrice");
 bindInput("loss-factor", "lossFactor");
+bindInput("inflation-rate", "inflationRate");
+
+document.getElementById("add-cost-item").addEventListener("click", () => {
+  state.costItems.push({ name: "Custom", unitPrice: 0, quantity: 1 });
+  buildCostInputs();
+  recalc();
+});
 
 buildConsumptionInputs();
+buildCostInputs();
 recalc();
