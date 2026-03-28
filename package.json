@@ -1,0 +1,10 @@
+{
+  "name": "pv-calc",
+  "version": "0.1.0",
+  "description": "PV Solar Panel Calculator",
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "serve": "npx serve ."
+  }
+}
