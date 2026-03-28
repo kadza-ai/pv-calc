@@ -61,6 +61,13 @@
         <div id="cost-items-container"></div>
         <button id="add-cost-item" type="button">+ Add custom item</button>
       </div>
+      <div class="module" id="appliances-inputs">
+        <h2>Appliances</h2>
+        <label for="base-load">Base load (kW)</label>
+        <input type="number" id="base-load" value="0.3" step="0.1" min="0">
+        <div id="appliance-list"></div>
+        <button id="add-appliance" type="button">+ Add custom appliance</button>
+      </div>
       <div class="module" id="cable-inputs">
         <h2>Cable</h2>
         <label for="cable-length">Distance to inverter (m)</label>
@@ -96,6 +103,10 @@
         <h2>Production &amp; Savings</h2>
         <div id="consumption-output"></div>
         <canvas id="production-chart" width="500" height="250"></canvas>
+      </div>
+      <div class="module" id="appliances-results">
+        <h2>Appliance Scheduling</h2>
+        <div id="appliances-output"></div>
       </div>
     </div>
   </div>
