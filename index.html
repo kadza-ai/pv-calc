@@ -46,6 +46,15 @@
         <label for="dc-ac-ratio">DC/AC ratio</label>
         <input type="number" id="dc-ac-ratio" value="1.0" step="0.1" min="0.1">
       </div>
+      <div class="module" id="cable-inputs">
+        <h2>Cable</h2>
+        <label for="cable-length">Distance to inverter (m)</label>
+        <input type="number" id="cable-length" value="30" step="1" min="1">
+        <label for="max-drop-pct">Max voltage drop (%)</label>
+        <input type="number" id="max-drop-pct" value="2" step="0.1" min="0.1">
+        <label for="cable-size">Cable size (mm&sup2;, blank = auto)</label>
+        <input type="number" id="cable-size" step="1" min="1" placeholder="auto">
+      </div>
     </div>
     <div class="results">
       <div class="module" id="location-results">
@@ -59,6 +68,10 @@
       <div class="module" id="panels-results">
         <h2>String Configuration</h2>
         <div id="panels-output"></div>
+      </div>
+      <div class="module" id="cable-results">
+        <h2>Cable Sizing</h2>
+        <div id="cable-output"></div>
       </div>
     </div>
   </div>

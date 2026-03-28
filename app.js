@@ -1,6 +1,7 @@
 import { getPSH } from "./location/calc.js";
 import { calcPanelFit } from "./terrain/calc.js";
 import { calcPanels } from "./panels/calc.js";
+import { calcCable } from "./cable/calc.js";
 
 const state = {
   latitude: 51.66,
@@ -16,6 +17,9 @@ const state = {
   overrideTilt: null,
   azimuth: 180,
   dcAcRatio: 1.0,
+  cableLength: 30,
+  maxDropPct: 2,
+  cableSize: null,
 };
 
 function recalc() {
@@ -39,6 +43,15 @@ function recalc() {
   });
   const tiltAngle = state.overrideTilt ?? panelResult.tiltAngle;
   renderPanels({ ...panelResult, tiltAngle });
+
+  const cableResult = calcCable({
+    systemVoltage: panelResult.systemVoltage,
+    totalKwp: panelResult.totalKwp,
+    cableLength: state.cableLength,
+    maxDropPct: state.maxDropPct,
+    cableSize: state.cableSize,
+  });
+  renderCable(cableResult);
 }
 
 function renderPSH(psh) {
@@ -70,6 +83,16 @@ function renderPanels({ series, parallel, systemVoltage, totalKwp, tiltAngle, az
   `;
 }
 
+function renderCable({ voltageDrop, voltageDropPct, recommendedSize, actualSize, warning }) {
+  const el = document.getElementById("cable-output");
+  el.innerHTML = `
+    <div>Recommended: <strong>${recommendedSize} mm&sup2;</strong></div>
+    <div>Active: ${actualSize} mm&sup2;</div>
+    <div>Voltage drop: ${voltageDrop.toFixed(2)} V (${voltageDropPct.toFixed(2)}%)</div>
+    ${warning ? `<div style="color: #c00; font-weight: 600;">&#9888; ${warning}</div>` : ""}
+  `;
+}
+
 function bindInput(id, key, parser = parseFloat) {
   document.getElementById(id).addEventListener("input", (e) => {
     state[key] = parser(e.target.value);
@@ -98,5 +121,8 @@ bindInput("max-voltage", "maxVoltage");
 bindOptionalInput("tilt-angle", "overrideTilt", parseFloat);
 bindInput("azimuth", "azimuth");
 bindInput("dc-ac-ratio", "dcAcRatio");
+bindInput("cable-length", "cableLength");
+bindInput("max-drop-pct", "maxDropPct");
+bindOptionalInput("cable-size", "cableSize");
 
 recalc();
