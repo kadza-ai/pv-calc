@@ -4,6 +4,7 @@ import { calcPanels } from "./panels/calc.js";
 import { calcCable } from "./cable/calc.js";
 import { calcConsumption } from "./consumption/calc.js";
 import { calcCosts } from "./costs/calc.js";
+import { calcAppliances } from "./appliances/calc.js";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
                 "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -37,6 +38,15 @@ const state = {
     { name: "Grid-tie", unitPrice: 2000, quantity: 1 },
     { name: "Labor", unitPrice: 4000, quantity: 1 },
   ],
+  baseLoad: 0.3,
+  appliances: [
+    { name: "Dishwasher", power: 1.8, duration: 2, timesPerWeek: 7, contiguous: true, enabled: true, defaultHour: 20 },
+    { name: "Washing machine", power: 1.5, duration: 2, timesPerWeek: 3, contiguous: false, enabled: true, defaultHour: 18 },
+    { name: "Tumble dryer", power: 2.5, duration: 1.5, timesPerWeek: 3, contiguous: false, enabled: true, defaultHour: 19 },
+    { name: "EV charger", power: 7.4, duration: 3, timesPerWeek: 3, contiguous: false, enabled: false, defaultHour: 22 },
+    { name: "Oven", power: 2.0, duration: 1, timesPerWeek: 5, contiguous: true, enabled: true, defaultHour: 17 },
+  ],
+  selectedMonth: 5,
 };
 
 function recalc() {
@@ -49,7 +59,6 @@ function recalc() {
   const totalPanels = cols * rows;
   renderTerrain({ auto, cols, rows, totalPanels });
 
-  // Auto-sync panel quantity in cost items
   const panelCost = state.costItems.find(c => c.autoQty);
   if (panelCost) panelCost.quantity = totalPanels;
 
@@ -92,6 +101,19 @@ function recalc() {
     inflationRate: state.inflationRate,
   });
   renderCosts(costsResult);
+
+  const applianceResult = calcAppliances({
+    latitude: state.latitude,
+    month: state.selectedMonth,
+    totalKwp: panelResult.totalKwp,
+    azimuthCorrectionFactor: panelResult.azimuthCorrectionFactor,
+    cableLossPct: cableResult.voltageDropPct,
+    lossFactor: state.lossFactor,
+    pshForMonth: psh[state.selectedMonth],
+    baseLoad: state.baseLoad,
+    appliances: state.appliances,
+  });
+  renderAppliances(applianceResult);
 }
 
 function renderPSH(psh) {
@@ -196,6 +218,35 @@ function renderCosts({ totalCost, paybackYears, itemizedCosts }) {
   `;
 }
 
+function renderAppliances({ optimized, naive }) {
+  const el = document.getElementById("appliances-output");
+  const delta = optimized.selfConsumptionKwh - naive.selfConsumptionKwh;
+  el.innerHTML = `
+    <div>
+      <label for="schedule-month">Month:</label>
+      <select id="schedule-month">
+        ${MONTHS.map((m, i) => `<option value="${i}" ${i === state.selectedMonth ? "selected" : ""}>${m}</option>`).join("")}
+      </select>
+    </div>
+    <table style="width:100%; font-size:0.8rem; margin-top:0.5rem;">
+      <tr><th></th><th>Naive</th><th>Optimized</th></tr>
+      <tr><td>Self-consumption</td><td>${naive.selfConsumptionKwh.toFixed(2)} kWh</td><td>${optimized.selfConsumptionKwh.toFixed(2)} kWh</td></tr>
+      <tr><td>Self-consumption %</td><td>${naive.selfConsumptionPct.toFixed(1)}%</td><td>${optimized.selfConsumptionPct.toFixed(1)}%</td></tr>
+      <tr><td>Grid draw</td><td>${naive.gridDraw.toFixed(2)} kWh</td><td>${optimized.gridDraw.toFixed(2)} kWh</td></tr>
+    </table>
+    <div style="margin-top:0.3rem; font-weight:600;">Delta: +${delta.toFixed(2)} kWh self-consumed with optimized schedule</div>
+    <div style="margin-top:0.5rem; font-size:0.8rem;">
+      <strong>Optimized schedule:</strong>
+      ${optimized.schedule.map(s => `<div>${s.name}: hours ${s.hours.join(", ")} (${s.kwhUsed.toFixed(2)}/${s.totalKwh.toFixed(2)} kWh solar)</div>`).join("")}
+    </div>
+  `;
+
+  document.getElementById("schedule-month").addEventListener("change", (e) => {
+    state.selectedMonth = parseInt(e.target.value);
+    recalc();
+  });
+}
+
 function buildConsumptionInputs() {
   const container = document.getElementById("monthly-consumption-inputs");
   container.innerHTML = `<label style="margin-top:0.5rem; display:block;">Monthly consumption (kWh)</label>` +
@@ -244,6 +295,49 @@ function buildCostInputs() {
   });
 }
 
+function buildApplianceInputs() {
+  const container = document.getElementById("appliance-list");
+  container.innerHTML = state.appliances.map((app, i) => `
+    <div style="display:flex; gap:0.3rem; align-items:center; margin:4px 0; font-size:0.8rem; flex-wrap:wrap;">
+      <label style="display:flex; align-items:center; gap:2px; margin:0;">
+        <input type="checkbox" class="app-toggle" data-idx="${i}" ${app.enabled ? "checked" : ""}>
+      </label>
+      <input type="text" value="${app.name}" data-idx="${i}" data-field="name" class="app-field" style="flex:2; min-width:80px;">
+      <input type="number" value="${app.power}" data-idx="${i}" data-field="power" class="app-field" style="width:3.5rem;" step="0.1" min="0" title="kW">
+      <span>kW</span>
+      <input type="number" value="${app.duration}" data-idx="${i}" data-field="duration" class="app-field" style="width:3rem;" step="0.5" min="0.5" title="hours">
+      <span>h</span>
+      <input type="number" value="${app.timesPerWeek}" data-idx="${i}" data-field="timesPerWeek" class="app-field" style="width:2.5rem;" step="1" min="1" title="times/week">
+      <span>/wk</span>
+      <button type="button" class="remove-app" data-idx="${i}" style="cursor:pointer;">&times;</button>
+    </div>
+  `).join("");
+
+  container.querySelectorAll(".app-field").forEach(input => {
+    input.addEventListener("input", (e) => {
+      const idx = parseInt(e.target.dataset.idx);
+      const field = e.target.dataset.field;
+      state.appliances[idx][field] = field === "name" ? e.target.value : parseFloat(e.target.value) || 0;
+      recalc();
+    });
+  });
+
+  container.querySelectorAll(".app-toggle").forEach(input => {
+    input.addEventListener("change", (e) => {
+      state.appliances[parseInt(e.target.dataset.idx)].enabled = e.target.checked;
+      recalc();
+    });
+  });
+
+  container.querySelectorAll(".remove-app").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      state.appliances.splice(parseInt(e.target.dataset.idx), 1);
+      buildApplianceInputs();
+      recalc();
+    });
+  });
+}
+
 function bindInput(id, key, parser = parseFloat) {
   document.getElementById(id).addEventListener("input", (e) => {
     state[key] = parser(e.target.value);
@@ -278,6 +372,7 @@ bindOptionalInput("cable-size", "cableSize");
 bindInput("electricity-price", "electricityPrice");
 bindInput("loss-factor", "lossFactor");
 bindInput("inflation-rate", "inflationRate");
+bindInput("base-load", "baseLoad");
 
 document.getElementById("add-cost-item").addEventListener("click", () => {
   state.costItems.push({ name: "Custom", unitPrice: 0, quantity: 1 });
@@ -285,6 +380,13 @@ document.getElementById("add-cost-item").addEventListener("click", () => {
   recalc();
 });
 
+document.getElementById("add-appliance").addEventListener("click", () => {
+  state.appliances.push({ name: "Custom", power: 1.0, duration: 1, timesPerWeek: 1, contiguous: false, enabled: true, defaultHour: 12 });
+  buildApplianceInputs();
+  recalc();
+});
+
 buildConsumptionInputs();
 buildCostInputs();
+buildApplianceInputs();
 recalc();
