@@ -136,6 +136,19 @@ function recalc() {
     };
   });
   renderMonthlySelfConsumption(monthlySummary);
+
+  renderTopDown({
+    terrainWidth: state.terrainWidth,
+    terrainHeight: state.terrainHeight,
+    cols, rows,
+    panelWidth: state.panelWidth,
+    panelHeight: state.panelHeight,
+    cableLength: state.cableLength,
+  });
+  renderSideCrossSection({
+    tiltAngle,
+    panelHeight: state.panelHeight,
+  });
 }
 
 function renderPSH(psh) {
@@ -354,6 +367,187 @@ function renderMonthlySelfConsumption(summary) {
       ${summary.map((s, i) => `<tr><td>${MONTHS[i]}</td><td>${s.selfKwh.toFixed(2)}</td><td>${s.selfPct.toFixed(1)}%</td><td>${s.savingsZl.toFixed(2)}</td></tr>`).join("")}
     </table>
   `;
+}
+
+function renderTopDown({ terrainWidth, terrainHeight, cols, rows, panelWidth, panelHeight, cableLength }) {
+  const canvas = document.getElementById("topdown-canvas");
+  const ctx = canvas.getContext("2d");
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  const margin = 50;
+  const drawW = W - 2 * margin;
+  const drawH = H - 2 * margin - 30;
+
+  // Scale terrain to fit canvas
+  const scale = Math.min(drawW / terrainWidth, drawH / terrainHeight);
+  const tw = terrainWidth * scale;
+  const th = terrainHeight * scale;
+  const tx = margin + (drawW - tw) / 2;
+  const ty = margin + 20 + (drawH - th) / 2;
+
+  // Terrain rectangle
+  ctx.strokeStyle = "#666";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(tx, ty, tw, th);
+  ctx.fillStyle = "#e8f5e9";
+  ctx.fillRect(tx, ty, tw, th);
+
+  // Panels
+  const pw = panelWidth * scale;
+  const ph = panelHeight * scale;
+  ctx.fillStyle = "#1565c0";
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      ctx.fillRect(tx + c * pw + 1, ty + r * ph + 1, pw - 2, ph - 2);
+    }
+  }
+
+  // Dimension labels
+  ctx.fillStyle = "#333";
+  ctx.font = "11px sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText(`${terrainWidth}m`, tx + tw / 2, ty + th + 18);
+  ctx.save();
+  ctx.translate(tx - 12, ty + th / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText(`${terrainHeight}m`, 0, 0);
+  ctx.restore();
+
+  // North arrow
+  ctx.beginPath();
+  ctx.moveTo(W - 30, 40);
+  ctx.lineTo(W - 25, 55);
+  ctx.lineTo(W - 35, 55);
+  ctx.closePath();
+  ctx.fillStyle = "#333";
+  ctx.fill();
+  ctx.font = "bold 12px sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("N", W - 30, 35);
+
+  // Garage icon (bottom-right of canvas)
+  const gx = tx + tw + 20, gy = ty + th - 20;
+  ctx.fillStyle = "#795548";
+  ctx.fillRect(gx, gy, 25, 20);
+  ctx.fillStyle = "#fff";
+  ctx.font = "8px sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("Garage", gx + 12, gy + 12);
+
+  // Cable line
+  ctx.beginPath();
+  ctx.setLineDash([4, 4]);
+  ctx.strokeStyle = "#f44336";
+  ctx.lineWidth = 2;
+  ctx.moveTo(tx + cols * pw, ty + rows * ph / 2);
+  ctx.lineTo(gx, gy + 10);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = "#f44336";
+  ctx.font = "9px sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillText(`${cableLength}m`, (tx + cols * pw + gx) / 2 + 5, (ty + rows * ph / 2 + gy + 10) / 2 - 5);
+}
+
+function renderSideCrossSection({ tiltAngle, panelHeight }) {
+  const canvas = document.getElementById("side-canvas");
+  const ctx = canvas.getContext("2d");
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  const groundY = H - 50;
+  const panelLen = 150;
+
+  // Ground line
+  ctx.beginPath();
+  ctx.strokeStyle = "#8d6e63";
+  ctx.lineWidth = 3;
+  ctx.moveTo(30, groundY);
+  ctx.lineTo(W - 30, groundY);
+  ctx.stroke();
+  ctx.fillStyle = "#d7ccc8";
+  ctx.fillRect(30, groundY, W - 60, 15);
+
+  // Tilted panel
+  const tiltRad = (tiltAngle * Math.PI) / 180;
+  const baseX = 150;
+  const baseY = groundY;
+  const topX = baseX + panelLen * Math.cos(tiltRad);
+  const topY = baseY - panelLen * Math.sin(tiltRad);
+
+  // Mounting structure
+  ctx.beginPath();
+  ctx.strokeStyle = "#9e9e9e";
+  ctx.lineWidth = 3;
+  ctx.moveTo(baseX, baseY);
+  ctx.lineTo(baseX, topY + 20);
+  ctx.stroke();
+  ctx.moveTo(topX, baseY);
+  ctx.lineTo(topX, topY);
+  ctx.stroke();
+
+  // Panel surface
+  ctx.beginPath();
+  ctx.strokeStyle = "#1565c0";
+  ctx.lineWidth = 5;
+  ctx.moveTo(baseX, baseY - 5);
+  ctx.lineTo(topX, topY);
+  ctx.stroke();
+  ctx.fillStyle = "rgba(21, 101, 192, 0.3)";
+  ctx.beginPath();
+  ctx.moveTo(baseX, baseY - 5);
+  ctx.lineTo(topX, topY);
+  ctx.lineTo(topX, topY + 5);
+  ctx.lineTo(baseX, baseY);
+  ctx.fill();
+
+  // Angle arc
+  ctx.beginPath();
+  ctx.strokeStyle = "#e65100";
+  ctx.lineWidth = 1.5;
+  ctx.arc(baseX, baseY, 40, -Math.PI, -Math.PI + tiltRad, false);
+  ctx.stroke();
+  ctx.fillStyle = "#e65100";
+  ctx.font = "11px sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillText(`${tiltAngle.toFixed(1)}\u00b0`, baseX + 45, baseY - 8);
+
+  // Row spacing annotation
+  const spacing = panelHeight * Math.cos(tiltRad);
+  const spX = topX + 30;
+  ctx.beginPath();
+  ctx.strokeStyle = "#666";
+  ctx.lineWidth = 1;
+  ctx.setLineDash([3, 3]);
+  ctx.moveTo(topX, baseY);
+  ctx.lineTo(spX + 40, baseY);
+  ctx.moveTo(topX + spacing * 3, baseY);
+  ctx.lineTo(spX + 40, baseY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = "#666";
+  ctx.font = "10px sans-serif";
+  ctx.fillText(`row spacing`, spX + 5, baseY - 10);
+
+  // Sun icon
+  const sunX = W - 80, sunY = 50;
+  ctx.beginPath();
+  ctx.arc(sunX, sunY, 18, 0, Math.PI * 2);
+  ctx.fillStyle = "#ffb300";
+  ctx.fill();
+  ctx.strokeStyle = "#ff8f00";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  // Sun rays
+  for (let a = 0; a < Math.PI * 2; a += Math.PI / 4) {
+    ctx.beginPath();
+    ctx.moveTo(sunX + 22 * Math.cos(a), sunY + 22 * Math.sin(a));
+    ctx.lineTo(sunX + 30 * Math.cos(a), sunY + 30 * Math.sin(a));
+    ctx.strokeStyle = "#ff8f00";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
 }
 
 function buildConsumptionInputs() {
