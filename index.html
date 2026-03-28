@@ -31,6 +31,21 @@
         <label for="override-rows">Rows (blank = auto)</label>
         <input type="number" id="override-rows" step="1" min="0" placeholder="auto">
       </div>
+      <div class="module" id="panels-inputs">
+        <h2>Panels</h2>
+        <label for="panel-wp">Panel Wp</label>
+        <input type="number" id="panel-wp" value="400" step="10" min="1">
+        <label for="panel-voc">Panel Voc (V)</label>
+        <input type="number" id="panel-voc" value="37.5" step="0.1" min="1">
+        <label for="max-voltage">Max inverter voltage (V DC)</label>
+        <input type="number" id="max-voltage" value="800" step="10" min="100">
+        <label for="tilt-angle">Tilt angle (&deg;, blank = auto from latitude)</label>
+        <input type="number" id="tilt-angle" step="0.1" min="0" max="90" placeholder="auto">
+        <label for="azimuth">Azimuth (&deg;, 180 = due south)</label>
+        <input type="number" id="azimuth" value="180" step="1" min="0" max="360">
+        <label for="dc-ac-ratio">DC/AC ratio</label>
+        <input type="number" id="dc-ac-ratio" value="1.0" step="0.1" min="0.1">
+      </div>
     </div>
     <div class="results">
       <div class="module" id="location-results">
@@ -40,6 +55,10 @@
       <div class="module" id="terrain-results">
         <h2>Panel Layout</h2>
         <div id="terrain-output"></div>
+      </div>
+      <div class="module" id="panels-results">
+        <h2>String Configuration</h2>
+        <div id="panels-output"></div>
       </div>
     </div>
   </div>
