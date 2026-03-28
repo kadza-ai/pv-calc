@@ -46,6 +46,14 @@
         <label for="dc-ac-ratio">DC/AC ratio</label>
         <input type="number" id="dc-ac-ratio" value="1.0" step="0.1" min="0.1">
       </div>
+      <div class="module" id="consumption-inputs">
+        <h2>Consumption &amp; Price</h2>
+        <label for="electricity-price">Electricity price (PLN/kWh)</label>
+        <input type="number" id="electricity-price" value="0.75" step="0.01" min="0">
+        <label for="loss-factor">System loss factor</label>
+        <input type="number" id="loss-factor" value="0.85" step="0.01" min="0" max="1">
+        <div id="monthly-consumption-inputs"></div>
+      </div>
       <div class="module" id="cable-inputs">
         <h2>Cable</h2>
         <label for="cable-length">Distance to inverter (m)</label>
@@ -72,6 +80,11 @@
       <div class="module" id="cable-results">
         <h2>Cable Sizing</h2>
         <div id="cable-output"></div>
+      </div>
+      <div class="module" id="consumption-results">
+        <h2>Production &amp; Savings</h2>
+        <div id="consumption-output"></div>
+        <canvas id="production-chart" width="500" height="250"></canvas>
       </div>
     </div>
   </div>

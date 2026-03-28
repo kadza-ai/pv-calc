@@ -2,6 +2,10 @@ import { getPSH } from "./location/calc.js";
 import { calcPanelFit } from "./terrain/calc.js";
 import { calcPanels } from "./panels/calc.js";
 import { calcCable } from "./cable/calc.js";
+import { calcConsumption } from "./consumption/calc.js";
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 const state = {
   latitude: 51.66,
@@ -20,6 +24,9 @@ const state = {
   cableLength: 30,
   maxDropPct: 2,
   cableSize: null,
+  electricityPrice: 0.75,
+  lossFactor: 0.85,
+  consumption: [300, 280, 260, 240, 220, 200, 200, 220, 240, 260, 280, 300],
 };
 
 function recalc() {
@@ -52,13 +59,23 @@ function recalc() {
     cableSize: state.cableSize,
   });
   renderCable(cableResult);
+
+  const consumptionResult = calcConsumption({
+    psh,
+    totalKwp: panelResult.totalKwp,
+    azimuthCorrectionFactor: panelResult.azimuthCorrectionFactor,
+    cableLossPct: cableResult.voltageDropPct,
+    consumption: state.consumption,
+    electricityPrice: state.electricityPrice,
+    lossFactor: state.lossFactor,
+  });
+  renderConsumption(consumptionResult);
+  renderProductionChart(consumptionResult);
 }
 
 function renderPSH(psh) {
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const el = document.getElementById("psh-output");
-  el.innerHTML = months
+  el.innerHTML = MONTHS
     .map((m, i) => `<div>${m}: <strong>${psh[i].toFixed(2)}</strong> h</div>`)
     .join("");
 }
@@ -93,6 +110,78 @@ function renderCable({ voltageDrop, voltageDropPct, recommendedSize, actualSize,
   `;
 }
 
+function renderConsumption({ production, savings, annualProduction, annualSavings }) {
+  const el = document.getElementById("consumption-output");
+  el.innerHTML = `
+    <div>Annual production: <strong>${annualProduction.toFixed(0)} kWh</strong></div>
+    <div>Annual savings: <strong>${annualSavings.toFixed(2)} z\u0142</strong></div>
+    <table style="width:100%; font-size:0.8rem; margin-top:0.5rem;">
+      <tr><th>Month</th><th>Prod (kWh)</th><th>Cons (kWh)</th><th>Savings (z\u0142)</th></tr>
+      ${MONTHS.map((m, i) => `<tr><td>${m}</td><td>${production[i].toFixed(0)}</td><td>${state.consumption[i]}</td><td>${savings[i].toFixed(2)}</td></tr>`).join("")}
+    </table>
+  `;
+}
+
+function renderProductionChart({ production }) {
+  const canvas = document.getElementById("production-chart");
+  const ctx = canvas.getContext("2d");
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  const maxVal = Math.max(...production, ...state.consumption, 1);
+  const barW = (W - 60) / 12;
+  const chartH = H - 40;
+
+  ctx.fillStyle = "#e0e0e0";
+  ctx.fillRect(50, 10, W - 60, chartH);
+
+  for (let i = 0; i < 12; i++) {
+    const x = 50 + i * barW;
+    const prodH = (production[i] / maxVal) * chartH;
+    const consH = (state.consumption[i] / maxVal) * chartH;
+    const bw = barW * 0.4;
+
+    ctx.fillStyle = "#f59e0b";
+    ctx.fillRect(x + 2, 10 + chartH - prodH, bw, prodH);
+    ctx.fillStyle = "#3b82f6";
+    ctx.fillRect(x + 2 + bw, 10 + chartH - consH, bw, consH);
+
+    ctx.fillStyle = "#333";
+    ctx.font = "10px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(MONTHS[i], x + barW / 2, H - 5);
+  }
+
+  ctx.fillStyle = "#f59e0b";
+  ctx.fillRect(55, 2, 8, 8);
+  ctx.fillStyle = "#3b82f6";
+  ctx.fillRect(105, 2, 8, 8);
+  ctx.fillStyle = "#333";
+  ctx.font = "10px sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillText("Production", 66, 10);
+  ctx.fillText("Consumption", 116, 10);
+}
+
+// Build monthly consumption inputs
+function buildConsumptionInputs() {
+  const container = document.getElementById("monthly-consumption-inputs");
+  container.innerHTML = `<label style="margin-top:0.5rem; display:block;">Monthly consumption (kWh)</label>` +
+    MONTHS.map((m, i) => `
+      <div style="display:flex; gap:0.3rem; align-items:center; margin:2px 0;">
+        <span style="width:2rem; font-size:0.8rem;">${m}</span>
+        <input type="number" class="monthly-cons" data-month="${i}" value="${state.consumption[i]}" step="10" min="0" style="flex:1;">
+      </div>
+    `).join("");
+
+  container.querySelectorAll(".monthly-cons").forEach(input => {
+    input.addEventListener("input", (e) => {
+      state.consumption[parseInt(e.target.dataset.month)] = parseFloat(e.target.value) || 0;
+      recalc();
+    });
+  });
+}
+
 function bindInput(id, key, parser = parseFloat) {
   document.getElementById(id).addEventListener("input", (e) => {
     state[key] = parser(e.target.value);
@@ -124,5 +213,8 @@ bindInput("dc-ac-ratio", "dcAcRatio");
 bindInput("cable-length", "cableLength");
 bindInput("max-drop-pct", "maxDropPct");
 bindOptionalInput("cable-size", "cableSize");
+bindInput("electricity-price", "electricityPrice");
+bindInput("loss-factor", "lossFactor");
 
+buildConsumptionInputs();
 recalc();
