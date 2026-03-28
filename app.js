@@ -114,6 +114,28 @@ function recalc() {
     appliances: state.appliances,
   });
   renderAppliances(applianceResult);
+  renderScheduleChart(applianceResult);
+
+  // Per-month summary
+  const monthlySummary = psh.map((_, m) => {
+    const mr = calcAppliances({
+      latitude: state.latitude,
+      month: m,
+      totalKwp: panelResult.totalKwp,
+      azimuthCorrectionFactor: panelResult.azimuthCorrectionFactor,
+      cableLossPct: cableResult.voltageDropPct,
+      lossFactor: state.lossFactor,
+      pshForMonth: psh[m],
+      baseLoad: state.baseLoad,
+      appliances: state.appliances,
+    });
+    return {
+      selfKwh: mr.optimized.selfConsumptionKwh,
+      selfPct: mr.optimized.selfConsumptionPct,
+      savingsZl: mr.optimized.selfConsumptionKwh * state.electricityPrice,
+    };
+  });
+  renderMonthlySelfConsumption(monthlySummary);
 }
 
 function renderPSH(psh) {
@@ -245,6 +267,93 @@ function renderAppliances({ optimized, naive }) {
     state.selectedMonth = parseInt(e.target.value);
     recalc();
   });
+}
+
+const APPLIANCE_COLORS = ["#ef4444", "#3b82f6", "#22c55e", "#a855f7", "#f97316", "#06b6d4", "#ec4899", "#84cc16"];
+
+function renderScheduleChart({ solarCurve, optimized }) {
+  const canvas = document.getElementById("schedule-chart");
+  const ctx = canvas.getContext("2d");
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  const maxKw = Math.max(...solarCurve, 1);
+  const chartL = 40, chartR = W - 10, chartT = 25, chartB = H - 25;
+  const chartW = chartR - chartL, chartH = chartB - chartT;
+  const barW = chartW / 24;
+
+  // Background
+  ctx.fillStyle = "#f0f0f0";
+  ctx.fillRect(chartL, chartT, chartW, chartH);
+
+  // Solar curve as filled area
+  ctx.beginPath();
+  ctx.moveTo(chartL, chartB);
+  for (let h = 0; h < 24; h++) {
+    const x = chartL + h * barW + barW / 2;
+    const y = chartB - (solarCurve[h] / maxKw) * chartH;
+    ctx.lineTo(x, y);
+  }
+  ctx.lineTo(chartL + 24 * barW, chartB);
+  ctx.closePath();
+  ctx.fillStyle = "rgba(250, 204, 21, 0.3)";
+  ctx.fill();
+  ctx.strokeStyle = "#f59e0b";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Appliance blocks
+  for (let si = 0; si < optimized.schedule.length; si++) {
+    const sched = optimized.schedule[si];
+    const color = APPLIANCE_COLORS[si % APPLIANCE_COLORS.length];
+    ctx.fillStyle = color + "aa";
+    for (const h of sched.hours) {
+      const x = chartL + h * barW + 1;
+      const power = sched.totalKwh / sched.hours.length;
+      const bh = (power / maxKw) * chartH;
+      ctx.fillRect(x, chartB - bh, barW - 2, bh);
+    }
+  }
+
+  // X-axis labels
+  ctx.fillStyle = "#333";
+  ctx.font = "9px sans-serif";
+  ctx.textAlign = "center";
+  for (let h = 0; h < 24; h += 2) {
+    ctx.fillText(`${h}`, chartL + h * barW + barW / 2, H - 5);
+  }
+
+  // Y-axis label
+  ctx.save();
+  ctx.translate(10, chartT + chartH / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.textAlign = "center";
+  ctx.fillText("kW", 0, 0);
+  ctx.restore();
+
+  // Legend
+  ctx.font = "9px sans-serif";
+  ctx.textAlign = "left";
+  let lx = chartL;
+  for (let si = 0; si < optimized.schedule.length; si++) {
+    const sched = optimized.schedule[si];
+    const color = APPLIANCE_COLORS[si % APPLIANCE_COLORS.length];
+    ctx.fillStyle = color;
+    ctx.fillRect(lx, 3, 8, 8);
+    ctx.fillStyle = "#333";
+    ctx.fillText(sched.name, lx + 10, 10);
+    lx += ctx.measureText(sched.name).width + 18;
+  }
+}
+
+function renderMonthlySelfConsumption(summary) {
+  const el = document.getElementById("monthly-self-consumption");
+  el.innerHTML = `
+    <table style="width:100%; font-size:0.8rem;">
+      <tr><th>Month</th><th>Self-cons (kWh)</th><th>Self-cons %</th><th>Savings (z\u0142)</th></tr>
+      ${summary.map((s, i) => `<tr><td>${MONTHS[i]}</td><td>${s.selfKwh.toFixed(2)}</td><td>${s.selfPct.toFixed(1)}%</td><td>${s.savingsZl.toFixed(2)}</td></tr>`).join("")}
+    </table>
+  `;
 }
 
 function buildConsumptionInputs() {
