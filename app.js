@@ -5,6 +5,7 @@ import { calcCable } from "./cable/calc.js";
 import { calcConsumption } from "./consumption/calc.js";
 import { calcCosts } from "./costs/calc.js";
 import { calcAppliances } from "./appliances/calc.js";
+import { calcWarnings } from "./results/calc.js";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
                 "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -136,6 +137,21 @@ function recalc() {
     };
   });
   renderMonthlySelfConsumption(monthlySummary);
+
+  const warnings = calcWarnings({
+    latitude: state.latitude,
+    totalPanels,
+    annualProduction: consumptionResult.annualProduction,
+    annualConsumption: state.consumption.reduce((s, v) => s + v, 0),
+    voltageDropPct: cableResult.voltageDropPct,
+    maxDropPct: state.maxDropPct,
+    systemVoltage: panelResult.systemVoltage,
+    maxVoltage: state.maxVoltage,
+    totalKwp: panelResult.totalKwp,
+    inverterKw: panelResult.inverterKw,
+    production: consumptionResult.production,
+  });
+  renderWarnings(warnings);
 
   renderTopDown({
     terrainWidth: state.terrainWidth,
@@ -367,6 +383,19 @@ function renderMonthlySelfConsumption(summary) {
       ${summary.map((s, i) => `<tr><td>${MONTHS[i]}</td><td>${s.selfKwh.toFixed(2)}</td><td>${s.selfPct.toFixed(1)}%</td><td>${s.savingsZl.toFixed(2)}</td></tr>`).join("")}
     </table>
   `;
+}
+
+function renderWarnings(warnings) {
+  const panel = document.getElementById("warnings-panel");
+  const el = document.getElementById("warnings-output");
+  if (warnings.length === 0) {
+    panel.style.display = "none";
+    return;
+  }
+  panel.style.display = "";
+  el.innerHTML = warnings
+    .map(w => `<div style="margin: 0.3rem 0; font-size: 0.85rem;">&#9888; ${w}</div>`)
+    .join("");
 }
 
 function renderTopDown({ terrainWidth, terrainHeight, cols, rows, panelWidth, panelHeight, cableLength }) {
