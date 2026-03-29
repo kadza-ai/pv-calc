@@ -63,3 +63,26 @@ input[type="number"] {
     grid-template-columns: 1fr;
   }
 }
+
+@media print {
+  .inputs, button, select, input {
+    display: none !important;
+  }
+  .results {
+    grid-column: 1 / -1;
+  }
+  .layout {
+    grid-template-columns: 1fr;
+  }
+  #summary-panel, #summary-panel * {
+    display: block !important;
+  }
+  .module {
+    break-inside: avoid;
+    box-shadow: none;
+    border: 1px solid #ddd;
+  }
+  body {
+    background: #fff;
+  }
+}
