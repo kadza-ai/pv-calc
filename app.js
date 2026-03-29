@@ -152,6 +152,24 @@ function recalc() {
     production: consumptionResult.production,
   });
   renderWarnings(warnings);
+  renderSummary({
+    totalPanels,
+    cols, rows,
+    totalKwp: panelResult.totalKwp,
+    series: panelResult.series,
+    parallel: panelResult.parallel,
+    systemVoltage: panelResult.systemVoltage,
+    inverterKw: panelResult.inverterKw,
+    tiltAngle,
+    azimuthCorrectionFactor: panelResult.azimuthCorrectionFactor,
+    cableSize: cableResult.actualSize,
+    voltageDropPct: cableResult.voltageDropPct,
+    annualProduction: consumptionResult.annualProduction,
+    annualSavings: consumptionResult.annualSavings,
+    totalCost: costsResult.totalCost,
+    paybackYears: costsResult.paybackYears,
+    warnings,
+  });
 
   renderTopDown({
     terrainWidth: state.terrainWidth,
@@ -382,6 +400,27 @@ function renderMonthlySelfConsumption(summary) {
       <tr><th>Month</th><th>Self-cons (kWh)</th><th>Self-cons %</th><th>Savings (z\u0142)</th></tr>
       ${summary.map((s, i) => `<tr><td>${MONTHS[i]}</td><td>${s.selfKwh.toFixed(2)}</td><td>${s.selfPct.toFixed(1)}%</td><td>${s.savingsZl.toFixed(2)}</td></tr>`).join("")}
     </table>
+  `;
+}
+
+function renderSummary({ totalPanels, cols, rows, totalKwp, series, parallel, systemVoltage, inverterKw, tiltAngle, azimuthCorrectionFactor, cableSize, voltageDropPct, annualProduction, annualSavings, totalCost, paybackYears, warnings }) {
+  const el = document.getElementById("summary-output");
+  el.innerHTML = `
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem; font-size:0.9rem;">
+      <div><strong>Panels:</strong> ${totalPanels} (${cols}&times;${rows})</div>
+      <div><strong>System size:</strong> ${totalKwp.toFixed(2)} kWp</div>
+      <div><strong>Strings:</strong> ${series}S &times; ${parallel}P</div>
+      <div><strong>Voltage:</strong> ${systemVoltage.toFixed(0)} V DC</div>
+      <div><strong>Inverter:</strong> ${inverterKw.toFixed(2)} kW</div>
+      <div><strong>Tilt:</strong> ${tiltAngle.toFixed(1)}\u00b0</div>
+      <div><strong>Azimuth corr.:</strong> ${azimuthCorrectionFactor.toFixed(3)}</div>
+      <div><strong>Cable:</strong> ${cableSize} mm\u00b2 (${voltageDropPct.toFixed(2)}% drop)</div>
+      <div><strong>Annual production:</strong> ${annualProduction.toFixed(0)} kWh</div>
+      <div><strong>Annual savings:</strong> ${annualSavings.toFixed(2)} z\u0142</div>
+      <div><strong>Total cost:</strong> ${totalCost.toLocaleString()} z\u0142</div>
+      <div><strong>Payback:</strong> ${paybackYears !== null ? paybackYears + " years" : "N/A"}</div>
+    </div>
+    ${warnings.length > 0 ? `<div style="margin-top:0.5rem; padding:0.3rem; background:#fffbeb; border-left:3px solid #f59e0b; font-size:0.85rem;">${warnings.length} warning(s) \u2014 see details above</div>` : `<div style="margin-top:0.5rem; color:#22c55e; font-weight:600;">\u2714 All checks passed</div>`}
   `;
 }
 
@@ -717,6 +756,8 @@ document.getElementById("add-appliance").addEventListener("click", () => {
   buildApplianceInputs();
   recalc();
 });
+
+document.getElementById("print-btn").addEventListener("click", () => window.print());
 
 buildConsumptionInputs();
 buildCostInputs();
